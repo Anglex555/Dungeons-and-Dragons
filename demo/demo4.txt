@@ -1,0 +1,382 @@
+import sys
+from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget, \
+    QGraphicsDropShadowEffect, QPushButton, QGridLayout, QSpacerItem, \
+    QSizePolicy, QApplication
+from PyQt5.QtGui import QTextCursor, QTextCharFormat, QFont
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QAction, QMenu, QMenuBar, QGraphicsOpacityEffect
+from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, Qt
+from datetime import datetime
+from PyQt5.QtGui import QIcon
+
+Stylesheet = """
+#Custom_Widget {
+    background-color: #896648;
+    border-radius: 10px;
+}
+#Custom_Dialog {
+    background-color: #ac8b68;
+    border-radius: 10px;
+}
+
+#closeButton {
+    min-width: 36px;
+    min-height: 36px;
+    font-family: "Webdings";
+    qproperty-text: "r";
+    border-radius: 10px;
+}
+#modeButton {
+    min-width: 36px;
+    min-height: 36px;
+    font-family: "Webdings";
+    border-radius: 10px;
+}
+#modeButton:hover {
+    color: white;
+    background: #201c4d;
+}
+#closeButton:hover {
+    color: white;
+    background: red;
+}
+"""
+
+class Dialog(QDialog):
+
+    def __init__(self, *args, **kwargs):
+        super(Dialog, self).__init__(*args, **kwargs)
+        self.setObjectName('Custom_Dialog')
+        self.setStyleSheet('QDialog#Custom_Dialog { border-radius: 10px; }')
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        self.setStyleSheet(Stylesheet)
+        self.initUi()
+        # Добавляем анимацию открытия окна
+        self.animate_open()
+        effect = QGraphicsDropShadowEffect(self)
+        effect.setBlurRadius(12)
+        effect.setOffset(0, 0)
+        effect.setColor(Qt.gray)
+        self.setGraphicsEffect(effect)
+
+    def initUi(self):
+        layout = QVBoxLayout(self)
+        # 重点: Этот виджет используется как фон с закругленными углами
+        self.widget = QWidget(self)
+        self.widget.setObjectName('Custom_Widget')
+        self.widget.setStyleSheet("background-color: white;")
+
+        layout.addWidget(self.widget)
+
+        # Создаем кнопку закрытия и добавляем ее в правый верхний угол окна
+        self.close_button = QPushButton('r', self)
+        self.close_button.clicked.connect(self.accept)
+        self.close_button.setObjectName('closeButton')
+        self.close_button.setMaximumSize(36, 36)
+        layout.addWidget(self.close_button, alignment=Qt.AlignTop | Qt.AlignRight)
+
+        # Переместите кнопку закрытия на 40 пикселей ниже
+        layout.addSpacing(-40)
+
+        # Создаем кнопку для переключения режимов
+        self.mode_button = QPushButton(self)
+        self.mode_button.setObjectName('modeButton')
+        self.mode_button.setIcon(QIcon("mod.png"))  # Укажите путь к изображению
+        self.mode_button.setIconSize(QSize(44, 36))
+        self.mode_button.clicked.connect(self.toggle_mode)
+        layout.addWidget(self.mode_button, alignment=Qt.AlignLeft)
+
+        # Добавляем код чата сюда
+        self.chat_window = ChatWindow()
+        layout.addWidget(self.chat_window)
+
+    def toggle_mode(self):
+        # Добавьте ваш код для переключения режима (дневной/ночной) здесь
+        if self.chat_window.isNightMode():
+            self.set_day_mode()
+            self.chat_window.set_day_mode()
+        else:
+            self.chat_window.set_night_mode()
+            self.set_night_mode()
+
+    def set_day_mode(self):
+        self.setStyleSheet(Stylesheet + """
+            #Custom_Dialog {
+                background-color: #ac8b68;
+                border-radius: 10px;
+            }
+        """)
+        self.chat_window.set_day_mode()
+        self.is_night_mode = False
+
+    def set_night_mode(self):
+        self.setStyleSheet(Stylesheet + """
+            #Custom_Dialog {
+                background-color: #201c4d; /* Ночной режим */
+                border-radius: 10px;
+            }
+        """)
+        self.chat_window.set_night_mode()
+        self.is_night_mode = True
+
+    def animate_open(self):
+        # Создаем анимацию для окна чата (плавное появление)
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(1000)  # Длительность анимации в миллисекундах
+        self.animation.setStartValue(0.0)  # Начальная прозрачность (окно невидимо)
+        self.animation.setEndValue(1.0)  # Конечная прозрачность (полностью видимо)
+        self.animation.setEasingCurve(QEasingCurve.OutQuad)  # Устанавливаем кривую изменения прозрачности
+        self.animation.start()
+
+    def sizeHint(self):
+        return QSize(600, 400)
+
+
+class WorldWindow(QDialog):
+
+    def __init__(self, *args, **kwargs):
+        super(WorldWindow, self).__init__(*args, **kwargs)
+        self.setObjectName('Custom_Dialog')
+        self.setStyleSheet('QDialog#Custom_Dialog { border-radius: 10px; }')
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        self.setGeometry(100, 100, 600, 400)
+        self.setStyleSheet(Stylesheet)
+        self.initUi()
+
+    def initUi(self):
+        layout = QVBoxLayout(self)
+        # 重点: Этот виджет используется как фон с закругленными углами
+        self.widget = QWidget(self)
+        self.widget.setObjectName('Custom_Widget')
+        self.widget.setStyleSheet("background-color: white;")
+
+        layout.addWidget(self.widget)
+
+        # Создаем кнопку закрытия и добавляем ее в правый верхний угол окна
+        self.close_button = QPushButton('r', self)
+        self.close_button.clicked.connect(self.accept)
+        self.close_button.setObjectName('closeButton')
+        self.close_button.setMaximumSize(36, 36)
+        layout.addWidget(self.close_button, alignment=Qt.AlignTop | Qt.AlignRight)
+
+        # Переместите кнопку закрытия на 40 пикселей ниже
+        layout.addSpacing(-40)
+
+        # Создаем кнопку для переключения режимов
+        self.mode_button = QPushButton(self)
+        self.mode_button.setObjectName('modeButton')
+        self.mode_button.setIcon(QIcon("mod.png"))  # Укажите путь к изображению
+        self.mode_button.setIconSize(QSize(44, 36))
+        self.mode_button.clicked.connect(self.toggle_mode)
+        layout.addWidget(self.mode_button, alignment=Qt.AlignLeft)
+
+        # Добавьте три вертикальных контейнера здесь
+        container1 = QWidget(self)
+        container1_layout = QVBoxLayout()
+        container1.setLayout(container1_layout)
+        container1.setObjectName('Container1')
+        container1.setStyleSheet("background-color: white; border-radius: 10px;")
+
+        container2 = QWidget(self)
+        container2_layout = QVBoxLayout()
+        container2.setLayout(container2_layout)
+        container2.setObjectName('Container2')
+        container2.setStyleSheet("background-color: white; border-radius: 10px;")
+
+        container3 = QWidget(self)
+        container3_layout = QVBoxLayout()
+        container3.setLayout(container3_layout)
+        container3.setObjectName('Container3')
+        container3.setStyleSheet("background-color: white; border-radius: 10px;")
+
+        layout.addWidget(container1)
+        layout.addWidget(container2)
+        layout.addWidget(container3)
+
+    def toggle_mode(self):
+        # Добавьте ваш код для переключения режима (дневной/ночной) здесь
+        if self.isNightMode():
+            self.set_day_mode()
+        else:
+            self.set_night_mode()
+
+    def set_day_mode(self):
+        self.setStyleSheet(Stylesheet + """
+            #Custom_Dialog {
+                background-color: #ac8b68;
+                border-radius: 10px;
+            }
+        """)
+        self.is_night_mode = False
+
+    def set_night_mode(self):
+        self.setStyleSheet(Stylesheet + """
+            #Custom_Dialog {
+                background-color: #201f29; /* Ночной режим */
+                border-radius: 10px;
+            }
+        """)
+        self.is_night_mode = True
+
+
+class ChatWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Простой чат")
+        self.setGeometry(100, 100, 600, 400)
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        layout = QVBoxLayout()
+
+        self.message_display = QTextEdit()
+        self.message_display.setReadOnly(True)
+        layout.addWidget(self.message_display)
+
+        input_layout = QHBoxLayout()
+
+        self.text_input = QTextEdit()
+        self.text_input.setFixedHeight(35) 
+        self.text_input.setPlaceholderText("Введите ваше сообщение...")
+        input_layout.addWidget(self.text_input)
+
+        self.send_button = QPushButton(self)
+        self.send_button.clicked.connect(self.send_message)
+        self.send_button.setObjectName("SendButton")
+        self.send_button.setIcon(QIcon("send.png"))
+        self.send_button.setIconSize(QSize(28, 24))
+        self.send_button.setFixedSize(40, 36) 
+        self.set_button_style(self.send_button)  
+        input_layout.addWidget(self.send_button)
+
+
+        layout.addLayout(input_layout)
+
+        central_widget.setLayout(layout)
+
+        self.set_day_mode()
+
+        self.animate_open()
+        
+        self.opacity_effect = QGraphicsOpacityEffect(self.send_button)
+        self.send_button.setGraphicsEffect(self.opacity_effect)
+        self.opacity_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.opacity_animation.setEasingCurve(QEasingCurve.OutQuad)
+        self.opacity_animation.setDuration(300)
+        self.opacity_animation.setStartValue(0)
+        self.opacity_animation.setEndValue(1)
+        self.opacity_animation.finished.connect(self.reset_button_opacity)
+
+        self.set_button_style(self.send_button)
+
+    def animate_open(self):
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(1000) 
+        self.animation.setStartValue(0.0)
+        self.animation.setEndValue(1.0) 
+        self.animation.setEasingCurve(QEasingCurve.OutQuad)
+        self.animation.start()
+
+    def reset_button_opacity(self):
+        self.opacity_effect.setOpacity(1)
+    
+    def set_day_mode(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #c3ab92; /* Немного темнее старой бумаги */
+                border-radius: 10px;
+            }
+            QTextEdit {
+                background-color: #d2c0ad; /* Немного темнее цвет пергамента */
+                border: 1px solid #B9877B;
+                padding: 5px;
+                color: black;
+            }
+            QPushButton#SendButton {
+                background-color: #800080; /* Фиолетовый цвет */
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                margin-left: 5px;
+                border-radius: 10px; /* Закругленные углы */
+            }
+        """)
+        self.is_night_mode = False
+
+    def set_night_mode(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #222;
+                border-radius: 10px;
+            }
+            QTextEdit {
+                background-color: #333;
+                border: 1px solid #444;
+                padding: 5px;
+                color: white;
+            }
+            QPushButton#SendButton {
+                background-color: #800080; /* Фиолетовый цвет */
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                margin-left: 5px;
+                border-radius: 10px; /* Закругленные углы */
+            }
+        """)
+        self.is_night_mode = True
+
+    def send_message(self):
+        text = self.text_input.toPlainText()
+        if text:
+            timestamp = datetime.now().strftime("%H:%M:%S")  # Получаем текущее время
+            message = f"[{timestamp}] Вы: {text}"  # Формируем сообщение с именем пользователя и временем
+            text_format = QTextCharFormat()
+
+            # Устанавливаем жирный шрифт для имени и времени
+            text_format.setFontWeight(QFont.Bold)
+
+            # Устанавливаем цвет текста в ночном режиме (белый)
+            if self.isNightMode():
+                text_format.setForeground(Qt.white)
+
+            cursor = self.message_display.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            cursor.insertText(message, text_format)
+            cursor.insertBlock()
+            
+            self.text_input.clear()
+            self.text_input.setFocus()
+            
+            # Запускаем анимацию при нажатии на кнопку "Отправить"
+            self.opacity_animation.start()
+
+    def isNightMode(self):
+        # Функция, чтобы определить, включен ли ночной режим
+        return "background-color: #333" in self.styleSheet()
+
+    def set_button_style(self, button):
+        button.setStyleSheet("""
+            background-color: #800080; /* Фиолетовый цвет */
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            margin-left: 5px;
+            border-radius: 10px; /* Закругленные углы */
+        """)
+
+    def sizeHint(self):
+            return QSize(600, 400)
+
+if __name__ == '__main__':
+    import sys
+
+    app = QApplication(sys.argv)
+    world = WorldWindow()
+    world.show()
+    w = Dialog()
+    w.exec_()
+    QTimer.singleShot(200, app.quit)
+    sys.exit(app.exec_())

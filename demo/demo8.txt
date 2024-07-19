@@ -1,0 +1,1035 @@
+import sys
+from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget, \
+    QGraphicsDropShadowEffect, QPushButton, QGridLayout, QSpacerItem, \
+    QSizePolicy, QApplication
+from PyQt5.QtGui import QTextCursor, QTextCharFormat, QFont
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QAction, QMenu, QMenuBar, QGraphicsOpacityEffect
+from PyQt5.QtCore import QPropertyAnimation, QEasingCurve, Qt
+from datetime import datetime
+from PyQt5.QtGui import QIcon
+import sys
+import random
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel
+from PyQt5.QtGui import QPixmap, QTransform
+from PyQt5.QtCore import QTimer, Qt, pyqtProperty
+import threading
+
+dice_result = 0
+Stylesheet = """
+#Custom_Widget {
+    background-color: #896648;
+    border-radius: 10px;
+}
+#Custom_Dialog {
+    background-color: #ac8b68;
+    border-radius: 10px;
+}
+
+#closeButton {
+    min-width: 36px;
+    min-height: 36px;
+    font-family: "Webdings";
+    qproperty-text: "r";
+    border-radius: 10px;
+}
+#modeButton {
+    min-width: 36px;
+    min-height: 36px;
+    font-family: "Webdings";
+    border-radius: 10px;
+}
+#modeButton:hover {
+    color: white;
+    background: #201c4d;
+}
+#closeButton:hover {
+    color: white;
+    background: red;
+}
+#VerticalRectangle {
+    background-color: #800080; /* Цвет вертикального прямоугольника */
+}
+"""
+
+class Dialog(QDialog):
+
+    def __init__(self, *args, **kwargs):
+        super(Dialog, self).__init__(*args, **kwargs)
+        self.setObjectName('Custom_Dialog')
+        self.setStyleSheet('QDialog#Custom_Dialog { border-radius: 10px; }')
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        self.setStyleSheet(Stylesheet)
+        self.initUi()
+        # Добавляем анимацию открытия окна
+        self.animate_open()
+        effect = QGraphicsDropShadowEffect(self)
+        effect.setBlurRadius(12)
+        effect.setOffset(0, 0)
+        effect.setColor(Qt.gray)
+        self.setGraphicsEffect(effect)
+
+    def initUi(self):
+        layout = QVBoxLayout(self)
+
+        # 重点: Этот виджет используется как фон с закругленными углами
+        self.widget = QWidget(self)
+        self.widget.setObjectName('Custom_Widget')
+        self.widget.setStyleSheet("background-color: white;")
+
+        layout.addWidget(self.widget)
+
+        # Создаем кнопку закрытия и добавляем ее в правый верхний угол окна
+        self.close_button = QPushButton('r', self)
+        self.close_button.clicked.connect(self.accept)
+        self.close_button.setObjectName('closeButton')
+        self.close_button.setMaximumSize(36, 36)
+        layout.addWidget(self.close_button, alignment=Qt.AlignTop | Qt.AlignRight)
+
+        # Переместите кнопку закрытия на 40 пикселей ниже
+        layout.addSpacing(-40)
+
+        # Создаем кнопку для переключения режимов
+        self.mode_button = QPushButton(self)
+        self.mode_button.setObjectName('modeButton')
+        self.mode_button.setIcon(QIcon("mod.png"))  # Укажите путь к изображению
+        self.mode_button.setIconSize(QSize(44, 36))
+        self.mode_button.clicked.connect(self.toggle_mode)
+        layout.addWidget(self.mode_button, alignment=Qt.AlignLeft)
+        # Создаем горизонтальный макет для размещения chat_window и dice_window
+        horizontal_layout = QHBoxLayout()
+
+        # Добавляем chat_window в левый столбец горизонтального макета
+        self.chat_window = ChatWindow()
+        self.dice_window = DiceApp(self.chat_window)
+
+        # Добавляем dice_window в правый столбец горизонтального макета
+        horizontal_layout.addWidget(self.chat_window)
+        horizontal_layout.addWidget(self.dice_window)
+
+        # Добавляем горизонтальный макет в вертикальный макет
+        layout.addLayout(horizontal_layout)
+
+        # Добавляем код чата сюда
+        # self.chat_window = ChatWindow()
+        # self.dice_window = DiceApp()
+        # layout.addWidget(self.chat_window)
+        # layout.addWidget(self.dice_window)
+
+    def toggle_mode(self):
+        # Добавьте ваш код для переключения режима (дневной/ночной) здесь
+        if self.chat_window.is_night_mode:
+            self.set_day_mode()
+            self.chat_window.set_day_mode()
+        else:
+            self.chat_window.set_night_mode()
+            self.set_night_mode()
+
+    def set_day_mode(self):
+        self.setStyleSheet(Stylesheet + """
+            #Custom_Dialog {
+                background-color: #ac8b68;
+                border-radius: 10px;
+            }
+        """)
+        self.chat_window.set_day_mode()
+        self.is_night_mode = False
+
+    def set_night_mode(self):
+        self.setStyleSheet(Stylesheet + """
+            #Custom_Dialog {
+                background-color: #1b1b1f; /* Ночной режим */
+                border-radius: 10px;
+            }
+        """)
+        self.chat_window.set_night_mode()
+        self.is_night_mode = True
+
+    def animate_open(self):
+        # Создаем анимацию для окна чата (плавное появление)
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(1000)  # Длительность анимации в миллисекундах
+        self.animation.setStartValue(0.0)  # Начальная прозрачность (окно невидимо)
+        self.animation.setEndValue(1.0)  # Конечная прозрачность (полностью видимо)
+        self.animation.setEasingCurve(QEasingCurve.OutQuad)  # Устанавливаем кривую изменения прозрачности
+        self.animation.start()
+
+    def sizeHint(self):
+        return QSize(1000, 600)
+    
+class ChatWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("DnD")
+        self.setGeometry(100, 100, 800, 600)
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        self.is_night_mode = False
+
+        layout = QVBoxLayout()
+
+        self.message_display = QTextEdit()
+        self.message_display.setReadOnly(True)
+        layout.addWidget(self.message_display)
+        
+        self.game_state = 1
+        self.create_progress = 0
+        self.game_progress = 0
+        self.fight_progress = 0
+        self.story_progress = 0
+        self.select_techniques = 0
+        self.locations_state = {
+            "current_location": "фонтан",
+            "visited_locations": set()
+        }
+        self.locations = {
+            "фонтан": {
+                "description": "Вы находитесь у фонтана. Куда вы хотите пойти?",
+                "options": {
+                    "1": {
+                        "text": "Деревня",
+                        "location": "Деревня"
+                    },
+                    "2": {
+                        "text": "Лес",
+                        "location": "Лес"
+                    }
+                }
+            },
+            "Деревня": {
+                "description": "Вы пришли в деревню. Что вы хотите сделать?",
+                "options": {
+                    "1": {
+                        "text": "Гильдия приключений",
+                        "location": "Гильдия приключений"
+                    },
+                    "2": {
+                        "text": "Магазин",
+                        "location": "Магазин"
+                    },
+                    "3": {
+                        "text": "Гостиница",
+                        "location": "Гостиница"
+                    },
+                    "4": {
+                        "text": "Вернуться к фонтану",
+                        "location": "фонтан"
+                    }
+                }
+            },
+            "Лес": {
+                "description": "Вы в лесу. Что вы хотите сделать?",
+                "options": {
+                    "1": {
+                        "text": "Идти в глубь леса",
+                        "location": "тёмный лес"
+                    },
+                    "2": {
+                        "text": "Вернуться к фонтану",
+                        "location": "фонтан"
+                    }
+                }
+            },
+            "Гильдия приключений": {
+                "description": "Вы находитесь в гильдии приключений. Что вы хотите сделать?",
+                "options": {
+                    "1": {
+                        "text": "Принять задание",
+                        "location": "Принять задание"
+                    },
+                    "2": {
+                        "text": "Поговорить с гильдмейстером",
+                        "location": "Поговорить с гильдмейстером"
+                    },
+                    "3": {
+                        "text": "Вернуться в деревню",
+                        "location": "Деревня"
+                    }
+                }
+            },
+            "Магазин": {
+                "description": "Вы в магазине. Что вы хотите купить?",
+                "options": {
+                    "1": {
+                        "text": "Оружие",
+                        "location": "Магазин оружия"
+                    },
+                    "2": {
+                        "text": "Броня",
+                        "location": "Магазин брони"
+                    },
+                    "3": {
+                        "text": "Зелья лечения",
+                        "location": "Магазин зелий"
+                    },
+                    "4": {
+                        "text": "Вернуться в деревню",
+                        "location": "Деревня"
+                    }
+                }
+            },
+            "Гостиница": {
+                "description": "Вы в гостинице. Где вы хотите остановиться?",
+                "options": {
+                    "1": {
+                        "text": "Обычная комната",
+                        "location": "Обычная комната"
+                    },
+                    "2": {
+                        "text": "Роскошная комната",
+                        "location": "Роскошная комната"
+                    },
+                    "3": {
+                        "text": "Вернуться в деревню",
+                        "location": "Деревня"
+                    }
+                }
+            },
+            # Продолжайте добавлять другие локации по вашей необходимости
+
+            # Добавьте остальные локации аналогичным образом
+        }
+        self.hero = Hero()
+        self.enemy = Goblin()
+        
+        # Добавление мечей в spell_book
+        self.hero.add_spell(1, "Огненный шар", "Посох загорается алым огнем, и вы запускаете огненный шар, поражающий врага.", 'Wizard')
+        self.hero.add_spell(2, "Ледяные клинки", "Вы создаете острые ледяные клинки вокруг себя, которые резко устремляются в врага.", 'Wizard')
+        self.hero.add_spell(3, "Электрический разряд", "Посох начинает сверкать молниями, и вы выпускаете разряд электричества, поражая врага.", 'Wizard')
+        self.hero.add_spell(4, "Землетрясение", "Поднимая руки к небу, вы вызываете землетрясение, заставляя землю дрожать и трескаться, разрушая окружающую местность, поражая врага силовым ударом.", 'Wizard')
+        self.hero.add_spell(5, "Метеоритный дождь", "Вы поднимаете посох к небу и начинаете вертеть им в воздухе, создавая магический резонанс в атмосфере, с неба начинают падать и метеориты, оставляя за собой следы огня, поражая врага", 'Wizard')
+        self.hero.add_spell(6, "Небесная кара", "Посох начинает светиться ярким светом, который концентрируется в вершине посоха. После чего мгновенно выстреливает испепеляющий луч небесной мощи, и в тот же момент цель окутывается светом и мощным световым взрывом", 'Wizard')
+        self.hero.add_spell(7, "Снежный вихрь", "Ваши движения посохом вызывают образование снежного вихря, который обрушивается на врагов.", 'Wizard')
+        self.hero.add_spell(8, "Волна смрада", "Вы наполняете посох зловонием и отравой. После чего направляете его на врага, создавая волну смрада, которая наносит ядовитый и некротический урон.", 'Wizard')
+        self.hero.add_spell(9, "Пламя дракона", "Вы призываете силу дракона через ваш магический посох и направляете ее на врага. Мгновенно выстреливается мощное пламенное дыхание дракона.", 'Wizard')
+        self.hero.add_spell(10, "Ледяной шар", "Посох начинает излучать холодную ауру. Мощным жестом вы вызываете ледяной шар, который формируется на вершине посоха и стреляете им во врага.", 'Wizard')
+
+        # Добавление мечей в sword_book
+        self.hero.add_spell(1, "Пламя дракона", "Лезвие вашего меча обхватывает пламя дракона, и вы взмахиваете им, создавая адскую бурю изнутри врага.", 'Fighter')
+        self.hero.add_spell(2, "Печать инферно", "Вы создаете печать инферно на земле и ваш меч становится каналом для мощи ада. Ваши атаки вызывают духов инферно, нападающих на вашего врага.", 'Fighter')
+        self.hero.add_spell(3, "Ледяные шипы", "Вы наносите многочисленные удары мечом, и ваши атаки создают острые кристаллические осколки, которые проникают внутрь врага. ", 'Fighter')
+        self.hero.add_spell(4, "Абсолютный ноль", "Вы наносите многочисленные удары мечом, которые подвергают плоть и ткани врага абсолютному обморожению, унечтожая их.", 'Fighter')
+        self.hero.add_spell(5, "Гнев Голема", "Вы взмахиваете мечом, и при ударе об землю создается мощная ударная волна, сотрясающая врага и наносящая ему колоссальный урон. ", 'Fighter')
+        self.hero.add_spell(6, "Сила земли", "Ваш меч покрывается камнем и становится тяжелым, словно каменным монолитом. Совершив удар меч передаёт врагу удар, колоссальной силы.", 'Fighter')
+        self.hero.add_spell(7, "Сверхпроводник", "Меч начинает светиться мягким синим светом, а его лезвие образует кольца, напоминающие магнитные поля. Вы совершаете удар по врагу и выпускаете в него мощный электрический разряд.", 'Fighter')
+        self.hero.add_spell(8, "Молниеносный Удар", "Вы встаёте в боевую стойку и набравшись энергии совершаете молниеносный удар, поражающий врага менее чем за секунду", 'Fighter')
+        self.hero.add_spell(9, "Солнечный Исчадиец", "Вы активируете заклинание, и ваш меч превращается в источник живой энергии силы Солнца. И совершив удар, раздаётся мощный пламенный взрыв, подрывающий врага.", 'Fighter')
+        self.hero.add_spell(10, "Небесное благословление", "Меч начинает светиться от наполняющей его силой небес, благословлённых богами. Вы взмахиваете мечом и врага пронзает божественный удар, проходящий через доспехи и разрузающий его плоть.", 'Fighter')
+        
+        self.print_text("Создание персонажа")
+        self.create_hero("0")
+        self.is_roll = False
+
+        input_layout = QHBoxLayout()
+
+        self.text_input = QTextEdit()
+        self.text_input.setFixedHeight(35) 
+        self.text_input.setPlaceholderText("Введите ваше сообщение...")
+        self.text_input.keyPressEvent = self.custom_keyPressEvent
+        self.text_input.keyPressEvent = self.process_enter_key
+        input_layout.addWidget(self.text_input)
+
+        self.send_button = QPushButton(self)
+        self.send_button.clicked.connect(self.send_message)
+        self.send_button.setObjectName("SendButton")
+        self.send_button.setIcon(QIcon("send.png"))
+        self.send_button.setIconSize(QSize(28, 24))
+        self.send_button.setFixedSize(40, 36) 
+        self.set_button_style(self.send_button)  
+        input_layout.addWidget(self.send_button)
+
+
+        layout.addLayout(input_layout)
+        central_widget.setLayout(layout)
+
+        self.set_day_mode()
+        self.animate_open()
+        
+        self.opacity_effect = QGraphicsOpacityEffect(self.send_button)
+        self.send_button.setGraphicsEffect(self.opacity_effect)
+        self.opacity_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.opacity_animation.setEasingCurve(QEasingCurve.OutQuad)
+        self.opacity_animation.setDuration(300)
+        self.opacity_animation.setStartValue(0)
+        self.opacity_animation.setEndValue(1)
+        self.opacity_animation.finished.connect(self.reset_button_opacity)
+
+        self.set_button_style(self.send_button)
+
+    def animate_open(self):
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(1000) 
+        self.animation.setStartValue(0.0)
+        self.animation.setEndValue(1.0) 
+        self.animation.setEasingCurve(QEasingCurve.OutQuad)
+        self.animation.start()
+
+    def reset_button_opacity(self):
+        self.opacity_effect.setOpacity(1)
+
+    def custom_keyPressEvent(self, event):
+        if event.key() == Qt.Key_Return:
+            if event.modifiers() == Qt.ControlModifier:
+                # Если нажаты одновременно Ctrl+Enter, то вставляем перенос строки
+                cursor = self.text_input.textCursor()
+                cursor.insertBlock()
+                self.text_input.setTextCursor(cursor)
+            else:
+                # В противном случае отправляем сообщение
+                self.send_message()
+        else:
+            super(QTextEdit, self.text_input).keyPressEvent(event)
+
+    def process_enter_key(self, event):
+        if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
+            self.send_message()
+        else:
+            QTextEdit.keyPressEvent(self.text_input, event)
+    
+    def set_day_mode(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #c3ab92; /* Немного темнее старой бумаги */
+                border-radius: 10px;
+            }
+            QTextEdit {
+                background-color: #d2c0ad; /* Немного темнее цвет пергамента */
+                border: 1px solid #B9877B;
+                padding: 5px;
+                color: black;
+            }
+            QPushButton#SendButton {
+                background-color: #800080; /* Фиолетовый цвет */
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                margin-left: 5px;
+                border-radius: 10px; /* Закругленные углы */
+            }
+        """)
+        self.is_night_mode = False
+
+    def set_night_mode(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #222;
+                border-radius: 10px;
+            }
+            QTextEdit {
+                background-color: #333;
+                border: 1px solid #444;
+                padding: 5px;
+                color: white;
+            }
+            QPushButton#SendButton {
+                background-color: #800080; /* Фиолетовый цвет */
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                margin-left: 5px;
+                border-radius: 10px; /* Закругленные углы */
+            }
+        """)
+        self.is_night_mode = True
+        
+    def send_message(self):
+        text = self.text_input.toPlainText()
+        if text and self.is_roll == False:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            message = f"[{timestamp}] Вы: {text}"
+            self.print_text(message)
+
+            if(self.game_state == 1):
+                self.create_hero(text)
+            if(self.game_state == 2):
+                self.game_process(text)
+            if(self.game_state == 3):
+                self.story(text)
+
+            self.text_input.clear()
+            self.text_input.setFocus()
+
+            self.opacity_animation.start()
+
+    def game_process(self, input):
+        if self.game_progress == 1:
+            current_location = self.locations_state["current_location"]
+            options = self.locations.get(current_location, {}).get("options", {})
+
+            if input in options:
+                selected_option = options[input]
+                self.locations_state["visited_locations"].add(current_location)
+                self.locations_state["current_location"] = selected_option["location"]
+                self.display_location(selected_option["location"])
+            else:
+                self.print_text("Неверный выбор. Пожалуйста, выберите опцию из списка.")
+        elif self.game_progress == 2:
+            self.fight(input)
+        else:
+            current_location = self.locations_state["current_location"]
+            self.display_location(current_location)
+            self.game_progress = 1 
+
+    def fight(self, input):
+        if self.fight_progress == 0:
+            if input == '1':
+                self.print_text('Выберите заклинание')
+                
+                self.print_text('\n\t\tЗаклинания:')
+                for spell in self.hero.techniques:
+                    self.print_text(f"\t{spell['index']}. {spell['name']}")
+                self.fight_progress = 1
+            elif input == '2':
+                self.print_text('Бросьте кубик')
+                self.fight_progress = -1
+            else:
+                self.print_text("Неверный выбор. Пожалуйста, выберите опцию из списка.")
+        elif self.fight_progress == 1:
+            self.select_techniques = int(input)
+            self.print_text('Бросьте кубик')
+            self.fight_progress = 2
+        elif self.fight_progress == 2:
+            if self.hero.hero_class == 'Fighter':
+                original_power = random.randint(self.hero.weapon.damage[0], self.hero.weapon.damage[1]) + self.hero.strength / 2
+                damage = int(original_power * (float(self.hero.lvl) / 10 + 1) * (float(input) / 10))
+            if self.hero.hero_class == 'Wizard':
+                original_power = random.randint(self.hero.weapon.damage[0], self.hero.weapon.damage[1]) + self.hero.intelligence / 2
+                damage = int(original_power * (float(self.hero.lvl) / 10 + 1) * (float(input) / 10))
+            self.enemy.take_damage(damage)
+            self.print_text(self.hero.get_spell_description(self.select_techniques) + f' Враг получил {damage} урона.')
+            if self.enemy.health > 0:
+                self.print_text('Враг разозлился и готов атаковать. Защищайтесь!')
+                self.print_text('Бросьте кубик')
+                self.fight_progress = 3
+            else:
+                self.print_text('Враг повержен')
+                self.locations_state["current_location"] = 'Лес'
+                self.display_location(self.locations_state["current_location"])
+                self.fight_progress = 0
+                self.game_progress = 1 
+        elif self.fight_progress == 3:
+            self.print_text(self.enemy.attack(self.hero, input))
+            self.print_text('Ваша очередь атаковать, выберите заклинание')
+            self.print_text('\n\t\tЗаклинания:')
+            for spell in self.hero.techniques:
+                self.print_text(f"\t{spell['index']}. {spell['name']}")
+            self.fight_progress = 1
+        elif self.fight_progress == -1:
+            self.print_text(self.enemy.escape_attack(self.hero, input))
+            self.locations_state["current_location"] = 'Лес'
+            self.display_location(self.locations_state["current_location"])
+            self.fight_progress = 0
+            self.game_progress = 1
+        
+
+    def display_location(self, location):
+        if location == "тёмный лес":
+            self.print_text("В тёмном лесу, где кроны деревьев не пропускали свет из за кустов выскочил гоблин. Его зеленая кожа пылала яростью, и острый клинок был готов к битве. Что вы делаете? \n 1.Напасть на гоблина \n 2.Попытаться убежать из леса")
+            self.enemy = Goblin()
+            self.game_progress = 2
+        else:
+            location_data = self.locations.get(location)
+
+            description = location_data["description"]
+            options = location_data.get("options")
+
+            message = f"{description}\n"
+            if options:
+                for option, option_data in options.items():
+                    message += f"{option}. {option_data['text']}\n"
+
+            self.print_text(message)
+
+
+    def story(self, input):
+        pass
+
+    def create_hero(self, input):
+        if self.create_progress == 0:
+            self.hero.name = "Хиро"
+            self.hero.hero_class = "Fighter"
+            self.hero.race = "Human"
+            # self.hero.name = "Эльфи"
+            # self.hero.hero_class = "Wizard"
+            # self.hero.race = "Elf"
+            # self.hero.weapon = Staff('обычный посох', 19)
+            self.print_text(self.hero.add_random_spells(3, self.hero.hero_class))
+            self.hero.hp = 100
+            self.hero.strength = 10
+            self.hero.dexterity = 10
+            self.hero.constitution = 10
+            self.hero.intelligence = 10
+            self.hero.wisdom = 10
+            self.hero.charisma = 10
+            self.create_progress = 9
+        if self.create_progress == 0:
+            self.print_text("Введите имя вашего персонажа")
+            self.create_progress = 1
+        elif self.create_progress == 1:
+            self.hero.name = input
+            self.print_text("Выберите класс вашего персонажа: \n 1.Воин \n 2.Волшебник")
+            self.create_progress = 2
+        elif self.create_progress == 2:
+            if '1' in input:
+                self.hero.hero_class = 'Fighter'
+            elif '2' in input:
+                self.hero.hero_class = 'Wizard'
+                self.hero.weapon = Staff('обычный посох', 19)
+            self.print_text("Выберите расу вашего персонажа: \n 1.Человек \n 2.Эльф \n 3.Дварф")
+            self.create_progress = 3
+        elif self.create_progress == 3:
+            if '1' in input:
+                self.hero.race = 'Human'
+            elif '2' in input:
+                self.hero.race = 'Elf'
+            elif '3' in input:
+                self.hero.race = 'Dwarf'
+            self.print_text("Бросьте кубик, чтобы определить силу вашего персонажа")
+            self.is_roll = True
+            self.create_progress = 4
+        elif self.create_progress == 4:
+            if self.hero.race == 'Human':
+                self.hero.strength = input
+            elif self.hero.race == 'Elf':
+                self.hero.strength = int(input * 0.8)
+            elif self.hero.race == 'Dwarf':
+                self.hero.strength = int(input * 1.2)
+            self.is_roll = True
+            self.print_text("Бросьте кубик, чтобы определить ловкость вашего персонажа")
+            self.create_progress = 5
+        elif self.create_progress == 5:
+            if self.hero.race == 'Human':
+                self.hero.dexterity = input
+            elif self.hero.race == 'Elf':
+                self.hero.dexterity = int(input * 1.2)
+            elif self.hero.race == 'Dwarf':
+                self.hero.dexterity = int(input * 0.8)
+            self.print_text("Бросьте кубик, чтобы определить телосложение вашего персонажа")
+            self.is_roll = True
+            self.create_progress = 6
+        elif self.create_progress == 6:
+            if self.hero.race == 'Human':
+                self.hero.constitution = input
+            elif self.hero.race == 'Elf':
+                self.hero.constitution = int(input * 0.8)
+            elif self.hero.race == 'Dwarf':
+                self.hero.constitution = int(input * 1.2)
+            self.hero.hp = 10 * self.hero.constitution
+            self.print_text("Бросьте кубик, чтобы определить интеллект вашего персонажа")
+            self.is_roll = True
+            self.create_progress = 7
+        elif self.create_progress == 7:
+            if self.hero.race == 'Human':
+                self.hero.intelligence = input
+            elif self.hero.race == 'Elf':
+                self.hero.intelligence = int(input * 1.2)
+            elif self.hero.race == 'Dwarf':
+                self.hero.intelligence = int(input * 0.8)
+            self.print_text("Бросьте кубик, чтобы определить мудрость вашего персонажа")
+            self.is_roll = True
+            self.create_progress = 8
+        elif self.create_progress == 8:
+            if self.hero.race == 'Human':
+                self.hero.wisdom = input
+            elif self.hero.race == 'Elf':
+                self.hero.wisdom = int(input * 1.2)
+            elif self.hero.race == 'Dwarf':
+                self.hero.wisdom = input
+            self.print_text("Бросьте кубик, чтобы определить харизму вашего персонажа")
+            self.is_roll = True
+            self.create_progress = 9
+        elif self.create_progress == 9:
+            if self.hero.race == 'Human':
+                self.hero.charisma = input
+            elif self.hero.race == 'Elf':
+                self.hero.charisma = input
+            elif self.hero.race == 'Dwarf':
+                self.hero.charisma = input
+            self.print_text("Ваш персонаж успешно создан")
+            self.is_roll = False
+            self.game_state = 2
+            self.print_text(self.hero.info())
+            self.print_text('\n\t\tЗаклинания:')
+            for spell in self.hero.techniques:
+                self.print_text(f"\t{spell['index']}. {spell['name']}")
+            self.game_process('')
+
+    def roll(self):
+        global dice_result
+        if self.game_state == 1:
+            if self.create_progress > 2:
+                self.create_hero(dice_result)
+        if self.game_state == 2:
+            if self.fight_progress != 0:
+                self.fight(dice_result)
+
+
+
+    def print_text(self, message):
+        text_format = QTextCharFormat()
+        text_format.setFontWeight(QFont.Bold)
+        text_format.setFontPointSize(12)
+
+        cursor = self.message_display.textCursor()
+        cursor.setCharFormat(text_format)
+        cursor.insertText(message + '\n')  # Используйте append() для автопрокрутки
+
+        # Прокручиваем QTextEdit вниз
+        scroll_bar = self.message_display.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.maximum())
+
+    def set_button_style(self, button):
+        button.setStyleSheet("""
+            background-color: #800080; /* Фиолетовый цвет */
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            margin-left: 5px;
+            border-radius: 10px; /* Закругленные углы */
+        """)
+
+    def sizeHint(self):
+            return QSize(600, 400)
+
+class Sword:
+    def __init__(self, name, damage):
+        self.name = name
+        self.damage = (damage - 5, damage + 5)  # Диапазон урона
+        self.weight = 40  # Вес
+
+class Hammer:
+    def __init__(self, name, damage):
+        self.name = name  # Название оружия
+        self.damage = (damage - 8, damage + 8)  # Диапазон урона
+        self.weight = 50  # Вес
+
+class Staff:
+    def __init__(self, name, damage):
+        self.name = name  # Название оружия
+        self.damage = (damage - 10, damage + 10)  # Диапазон урона
+        self.weight = 30  # Вес
+
+
+class Hero :
+    name = ''
+    hero_class = ''
+    race = ''
+    hp = 0
+    strength = 0
+    dexterity = 0
+    constitution = 0
+    intelligence = 0
+    wisdom = 0
+    charisma = 0
+    spell_book = []
+    sword_book = []
+    hammer_book = []
+    techniques = []
+    spells_quantity = 0
+
+    def __init__(self):
+        self.name = "name"
+        self.hero_class = ''
+        self.race = ''
+        self.hp = 100
+        self.exp = 0
+        self.weapon = Sword('обычный меч', 15)
+        self.money = 10
+        self.lvl = 1
+
+    def add_random_spells(self, num_spells, hero_class):
+        if hero_class == 'Wizard':
+            available_spell_indices = self.spell_book
+            self.techniques = random.sample(available_spell_indices, num_spells)
+
+            out = ''
+            for spell in self.techniques:
+                self.spells_quantity += 1
+                spell['index'] = self.spells_quantity
+                out += f"Вы освоили заклинание '{spell['name']}': {spell['description']}\n"
+            return out
+        if hero_class == 'Fighter':
+            available_spell_indices = self.sword_book
+            print(self.sword_book)
+            self.techniques = random.sample(available_spell_indices, num_spells)
+
+            out = ''
+            for spell in self.techniques:
+                self.spells_quantity += 1
+                spell['index'] = self.spells_quantity
+                out += f"Вы освоили приёмы '{spell['name']}': {spell['description']}\n"
+            return out
+    
+    def add_spell(self, index, spell_name, description, hero_class):
+        if hero_class == 'Wizard':
+            spell = {
+                'index': index,
+                'name': spell_name,
+                'description': description
+            }
+            self.spell_book.append(spell)
+        if hero_class == 'Fighter':
+            spell = {
+                'index': index,
+                'name': spell_name,
+                'description': description
+            }
+            self.sword_book.append(spell)
+
+    def get_spell_description(self, index):
+        for spell in self.techniques:
+            if spell['index'] == index:
+                return spell['description']
+        return "Заклинание не найдено."
+    
+    def info(self) :
+        info = "\n\t\t Имя: " + self.name
+        info += "\n\t Класс: " + self.hero_class
+        info += "\n\t Раса: " + self.race
+        info += "\n\t Здоровье: " + str(self.hp)
+        info += "\n\t Сила: " + str(self.strength)
+        info += "\n\t Ловкость: " + str(self.dexterity)
+        info += "\n\t Телосложение: " + str(self.constitution)
+        info += "\n\t Интеллект: " + str(self.intelligence)
+        info += "\n\t Мудрость: " + str(self.wisdom)
+        info += "\n\t Харизма: " + str(self.charisma)
+        info += "\n\t Оружие: " + self.weapon.name
+        info += "\n\t Деньги: " + self.format_Money(self.money)
+        info += "\n\t Уровень: " + str(self.lvl)
+        info += "\n\t Опыт: " + str(self.exp)
+        # info = "\n\t\t name: " + self.name
+        # info += "\n\t Hero class: " + self.hero_class
+        # info += "\n\t Hero race: " + self.race
+        # info += "\n\t Hero hp: " + str(self.hp)
+        # info += "\n\t Hero strength: " + str(self.strength)
+        # info += "\n\t Hero dexterity: " + str(self.dexterity)
+        # info += "\n\t Hero constitution: " + str(self.constitution)
+        # info += "\n\t Hero intelligence: " + str(self.intelligence)
+        # info += "\n\t Hero wisdom: " + str(self.wisdom)
+        # info += "\n\t Hero charisma: " + str(self.charisma)
+        # info += "\n\t Hero weapon: " + self.weapon.name
+        # info += "\n\t Hero money: " + str(self.money)
+        # info += "\n\t Hero level: " + str(self.lvl)
+        # info += "\n\t Hero exp: " + str(self.exp)
+        return info
+
+    def take_damage(self, damage):
+        self.hp -= damage
+        if self.hp < 0:
+            self.hp = 0
+
+    def format_Money(self, coins):
+        platinum = coins // 1000
+        gold = (coins % 1000) // 100
+        silver = (coins % 100) // 10
+        bronze = coins % 10
+
+        def pluralize(value, unit):
+            if value == 0:
+                return ""
+            elif value == 1:
+                return f"{value} {unit}ая монета"
+            elif 1 < value < 5:
+                return f"{value} {unit}ые монеты"
+            else:
+                return f"{value} {unit}ых монет"
+
+        result = ""
+        if platinum > 0:
+            result += pluralize(platinum, "платинов")
+        if gold > 0:
+            result += " " if result else ""
+            result += pluralize(gold, "золот")
+        if silver > 0:
+            result += " " if result else ""
+            result += pluralize(silver, "серебрян")
+        if bronze > 0:
+            result += " " if result else ""
+            result += pluralize(bronze, "бронзов")
+
+        if not result:
+            return "0 бронзовых"
+
+        return result
+
+class Enemy:
+    def __init__(self, name, health=50, damage=5, armor=5):
+        self.name = name
+        self.health = health
+        self.damage = damage
+        self.armor = armor
+
+    def take_damage(self, damage):
+        self.health -= damage + self.armor
+        if self.health < 0:
+            self.health = 0
+
+    def is_alive(self):
+        return self.health > 0
+
+class Goblin(Enemy):
+    def __init__(self, name="Гоблин", health=40, damage=7, armor=0):
+        super().__init__(name, health, damage, armor)
+
+    def attack(self, hero, dice):
+        choose_attack = random.randint(1, 3)
+        if choose_attack == 1:
+            if dice >= 15:
+                attack_damage = 0
+                hero.take_damage(attack_damage)
+                return "Гоблин делает уверенный мах коротким кинжалом, но вы ловко отклоняетесь, и его атака промахивается. Вы своими волосами чувствуете ветер кинжала, пронесшийся мимо вашего лица."
+            elif dice >= 5:
+                attack_damage = random.randint(1, self.damage)
+                hero.take_damage(attack_damage)
+                return f"Резким движением руки гоблин атакует вас, его кинжал вонзается в ваши доспехи. Острое лезвие буквально взрывает боль, когда проникает в вашу плоть, нанося вам {attack_damage} урона."
+            else:
+                attack_damage = random.randint(1, self.damage) * 2
+                hero.take_damage(attack_damage)
+                return f"Гоблин, будто испытывая внезапный порыв ярости, атакует с такой силой, что его кинжал пронзает вашу броню и глубоко проникает в ваше тело. Острая боль охватывает вас. Это был исключительно мощный удар, наносящий вам {attack_damage} урона."
+        elif choose_attack == 2:
+            if dice >= 15:
+                attack_damage = 0
+                hero.take_damage(attack_damage)
+                return "Гоблин резко метает дротик, но его бросок не слишком точен. Дротик проходит мимо вас, мчась в сторону, не представляя угрозы."
+            elif dice >= 5:
+                attack_damage = random.randint(1, self.damage)
+                hero.take_damage(attack_damage)
+                return f"Резким движением, гоблин метает смазанный ядом дротик, который точно попадает в вас. Острый кончик дротика задевает вашу кожу, нанося вам {attack_damage} урона."
+            else:
+                attack_damage = random.randint(1, self.damage) * 2
+                hero.take_damage(attack_damage)
+                return f"Гоблин резко бросает дротик с невероятной меткостью. Дротик точно попадает в вас и пронзает вашу плоть. Острая боль охватывает вас, и вы чувствуете, что дротик был покрыт ядом, нанося вам {attack_damage} урона."
+        elif choose_attack == 3:
+            if dice >= 15:
+                attack_damage = 0
+                hero.take_damage(attack_damage)
+                return "Гоблин начинает атаковать вас быстрыми ударами, но ваше умение и проворство позволяют вам избежать его ударов. Его мечи и мечеты промахиваются, оставляя вас невредимым."
+            elif dice >= 5:
+                attack_damage = random.randint(1, self.damage)
+                hero.take_damage(attack_damage)
+                return f"Гоблин атакует вас быстрыми ударами, каждый из которых находит свою цель. Вы чувствуете, как лезвия короткого меча царапают вас, нанося вам {attack_damage} урона."
+            else:
+                attack_damage = random.randint(1, self.damage) * 2
+                hero.take_damage(attack_damage)
+                return f"Гоблин нападает с нескончаемой агрессией и скоростью вихря. Его мечи находят уязвимые места на вашем теле, и каждый удар проникает глубоко в ваши ткани. Это были удары смерти, наносящие вам {attack_damage} урона."
+        
+    def escape_attack(self, hero, dice):
+        attack_damage = random.randint(1, self.damage) * 2
+        hero.take_damage(attack_damage)
+        if dice >= 10:
+            return "Стремительно развернувшись, вы начали бежать со всех ног. Вскоре вы выбролись из темного леса, оставив за собой грозную атмосферу и опасность, что скрывалась в его чащах."
+        else:
+            return f"Вы ринулись вперед, стремясь выбраться из леса, однако внезапно гоблин запрыгнул на вас и вонзил свой нож вам в спину нанеся {attack_damage} урона."
+        
+
+class DiceApp(QWidget):
+    def __init__(self, chat_window):
+        super().__init__()
+        self.chat_window = chat_window
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(100, 100, 300, 600)
+        self.setWindowTitle('20-гранный кубик')
+
+        layout = QVBoxLayout()
+
+        self.dice_label = RotatableLabel(self)
+        self.dice_label.setAlignment(Qt.AlignCenter)
+        self.dice_label.setFixedSize(250, 250)
+        layout.addWidget(self.dice_label)
+
+        self.roll_button = QPushButton('Бросить кубик', self)
+        self.roll_button.clicked.connect(self.start_animation)
+        self.roll_button.setStyleSheet("""
+            background-color: #912c81; /* Фиолетовый цвет */
+            color: white;
+            border: none;
+            padding: 15px 10px;
+            margin-left: 5px;
+            border-radius: 10px; /* Закругленные углы */
+            font-size: 16px; /* Увеличенный размер текста */
+            font-weight: bold; /* Жирное начертание текста */
+        """)
+        layout.addWidget(self.roll_button)
+
+        self.setLayout(layout)
+
+        self.dice_images = []
+        for i in range(1, 21):
+            image_path = f'c:/Ультилиты/2/Mai/DnD/Dice/d{i}.png'
+            image = QPixmap(image_path)
+            scaled_image = image.scaled(self.dice_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.dice_images.append(scaled_image)
+
+        self.dice_label.setPixmap(self.dice_images[19])
+        self.animation_timer = QTimer(self)
+        self.animation_timer.timeout.connect(self.update_animation)
+        self.animation_duration = 500  # Продолжительность анимации в миллисекундах
+        self.animation_steps = 35  # Количество шагов анимации
+        self.current_step = 0
+        self.current_image = None
+        self.current_interval = 0  # Начальный интервал таймера
+
+    def start_animation(self):
+        self.roll_button.setEnabled(False)
+        self.roll_button.setStyleSheet(self.roll_button.styleSheet() + "background-color: #600060;")
+        self.current_step = 0
+        self.current_interval = 0  # Начальный интервал таймера
+        self.animation_timer.start(self.current_interval)
+
+    def update_animation(self):
+        global dice_result
+        if self.current_step < self.animation_steps:
+            # Выбираем случайное изображение и отображаем его
+            if self.current_step % 10 > self.current_step // 100 or self.current_step % 10 == 0:
+                random_image = random.choice(self.dice_images)
+                self.dice_label.setPixmap(random_image)
+                self.dice_label.angle += 30  # Увеличиваем угол на 30 градусов на каждом шаге
+
+            # Увеличиваем интервал таймера для замедления анимации
+            self.current_interval += 1 + self.current_step // 3
+            if self.current_step == 4:
+                self.roll_button.setStyleSheet(self.roll_button.styleSheet() + "background-color: #944a88;")
+            if self.current_step > 32:
+                self.current_interval += 5
+            self.animation_timer.setInterval(self.current_interval)
+
+            self.current_step += 1
+        else:
+            # Анимация завершена, выбираем окончательное изображение
+            self.roll_button.setStyleSheet(self.roll_button.styleSheet() + "background-color: #912c81;")
+            self.roll_button.setEnabled(True)
+            final_image = random.choice(self.dice_images)
+            dice_result = self.dice_images.index(final_image) + 1
+            self.chat_window.roll()
+            self.dice_label.setPixmap(final_image)
+            self.dice_label.angle += 30
+            self.animation_timer.stop()
+
+class RotatableLabel(QLabel):
+    def __init__(self, parent=None):
+        super(RotatableLabel, self).__init__(parent)
+        self._angle = 0
+
+    @pyqtProperty(float)
+    def angle(self):
+        return self._angle
+
+    @angle.setter
+    def angle(self, value):
+        self._angle = value
+        transform = QTransform()
+        transform.rotate(self._angle)
+        self.setPixmap(self.pixmap().transformed(transform))
+
+if __name__ == '__main__':
+    import sys
+
+    app = QApplication(sys.argv)
+    w = Dialog()
+    w.exec_()
+    QTimer.singleShot(200, app.quit)
+    sys.exit(app.exec_())
